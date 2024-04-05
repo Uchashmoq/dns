@@ -3,6 +3,7 @@
 #include <cstring>
 #include <iostream>
 #include "protocol/Dns.h"
+#include "net/udp.h"
 using namespace std;
 
 #define TEST(t) do{ \
@@ -47,6 +48,30 @@ void _testDnsBytes(const ::uint8_t data[] ,size_t size ){
         ::exit(1);
     }
 }
+
+void test53(int argv,char* args[]){
+    if(argv<3) {
+        cerr<<"args: ip port"<<endl;
+        ::exit(1);
+    }
+    auto sockfd = udpSocket(inetAddr(args[1], ::atoi(args[2])));
+    if(sockfd<0) exit(1);
+    char buf[8192];
+    for(;;){
+        auto n = readUdp(sockfd,buf, sizeof(buf), nullptr);
+        if(n<0){
+            closeSocket(sockfd);
+            exit(1);
+        }
+        Dns d;
+        auto res = Dns::resolve(d, buf, n);
+        if(res<0){
+            cerr<<"resolve error: "<<endl;
+        }
+        d.toString();
+    }
+}
+
 
 uint8_t t1[] = { /* Packet 787 */
         0xeb, 0xae, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00,

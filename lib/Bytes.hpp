@@ -1,8 +1,18 @@
 #ifndef DNS_BYTES_HPP
 #define DNS_BYTES_HPP
 #include <cstdlib>
+#include <cstring>
 #include <string>
 #include <iomanip>
+#include <sstream>
+
+#ifndef BIG_ENDIAN
+#define BIG_ENDIAN 1
+#endif
+
+#ifndef LITTLE_ENDIAN
+#define LITTLE_ENDIAN 0
+#endif
 
 void reverseBytes(void *buf,size_t len);
 struct Bytes{
@@ -93,7 +103,7 @@ public:
     BytesReader(void *p_,size_t size_):p((uint8_t*)p_) , size(size_),rp(0){}
 
     template<typename T>
-    T readNum(endian_t endian=BIG_ENDIAN){
+    T readNum(int endian=BIG_ENDIAN){
         T num;
         memcpy(&num,p+rp, sizeof(num));
         rp+=sizeof(num);
@@ -126,7 +136,7 @@ public:
     BytesWriter(void *p_,size_t size_):p((uint8_t*)p_) , size(size_),wp(0){}
 
     template<typename T>
-    bool writeNum(T num,endian_t endian=BIG_ENDIAN){
+    bool writeNum(T num,int endian=BIG_ENDIAN){
         if(size-wp<sizeof(num)) return false;
         if(endian==BIG_ENDIAN) reverseBytes(&num, sizeof(num));
         memcpy(p+wp,&num,sizeof(num));

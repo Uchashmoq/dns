@@ -26,6 +26,6 @@ int udpSocket(const SA_IN& addr){
 }
 
 ssize_t readUdp(int sockfd,void* dst,size_t size,SA_IN* addr){
-    int len = sizeof(SA_IN);
+    socklen_t len = sizeof(SA_IN);
     return recvfrom(sockfd,(char*)dst,size,0,(SA*)&addr,&len);
 }

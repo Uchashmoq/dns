@@ -1,5 +1,5 @@
 #include "net.h"
-
+#include <cstring>
 SA_IN inetAddr(const char *addrStr, unsigned short port) {
     SA_IN addr;
     memset(&addr,0, sizeof(addr));
@@ -24,5 +24,13 @@ std::string getLastErrorMessage() {
     return errorMessage;
 #else
     return strerror(errno);
+#endif
+}
+
+int closeSocket(int sockfd) {
+#ifdef WIN32
+    return closesocket(sockfd);
+#else
+    return close(sockfd);
 #endif
 }

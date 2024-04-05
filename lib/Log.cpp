@@ -29,12 +29,13 @@ void Log::printf(log_level_t lv, const char *format, ...) {
     if(Log::level>lv) return;
     time_t currentTime = time(nullptr);
     tm localTime = *localtime(&currentTime);
-    char tmp[8192];
+    char tmp[8192],time[256];
     va_list args;
     va_start(args,format);
     for(auto* out : outs){
         *out<<levelStr(lv)<<": ";
-        *out << put_time(&localTime, timeFormat.c_str()) << " ";
+        strftime(time, sizeof(time),timeFormat.c_str(),&localTime);
+        *out << time << " ";
         std::vsprintf(tmp,format,args);
         *out<<tmp<<endl;
     }
