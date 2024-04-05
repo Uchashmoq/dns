@@ -1,0 +1,361 @@
+#include "Dns.h"
+#include "../lib/Log.h"
+#include <iostream>
+using namespace std;
+static bool isDomainPointer(uint8_t * p , uint16_t * offset){
+    uint16_t k= *(uint16_t*)p;
+    reverseBytes(&k, sizeof(k));
+    if( k >>14==3){
+        if(offset!= nullptr) {
+            *offset = k & 0x3fff;
+        }
+        return true;
+    }else{
+        return false;
+    }
+}
+
+static size_t readLabeledData(vector<Bytes>& domain, uint8_t* p, const void* start , uint8_t* end, size_t* expand){
+    uint16_t offset,skip=0;
+    uint8_t len;
+    if(*p==0) return 1;
+    if(end-p< sizeof(offset)) throw DNSResolutionException("resolve dns exception : locate domain pointer error");
+    if(isDomainPointer(p,&offset)){
+        readLabeledData(domain, (uint8_t *) start + offset, start, end, expand);
+        return 2;
+    }
+    uint8_t *p0=p;
+    while (p<end && *p!=0){
+        if(end-p< sizeof(len)+1) throw DNSResolutionException("resolve dns exception : read domain");
+        if(isDomainPointer(p,&offset)){
+            readLabeledData(domain, (uint8_t *) start + offset, start, end, expand);
+            p+=2;
+            skip=0;
+            break;
+        }else{
+            len=*(uint8_t*)p;
+            p++;
+            if(expand!= nullptr) (*expand)++;
+            if(end-p<len) throw DNSResolutionException("resolve dns exception : read domain");
+            domain.emplace_back(p,len);
+            p+=len;
+            if(expand!= nullptr) *expand+=len;
+            skip=1;
+        }
+    }
+    if(expand!= nullptr) *expand+=skip-((p==end)&skip);
+    return p-p0+skip-((p==end)&skip);
+}
+static uint8_t * readField(void* dst,uint8_t* p ,size_t size ,uint8_t *end){
+    if(end-p<size) throw DNSResolutionException("resolve dns exception : read field error");
+    memcpy(dst,p,size);
+    reverseBytes(dst,size);
+    return p+size;
+}
+void Dns::getFlags(int *pQR, int *pOPCODE, int *pAA, int *pTC, int *pRD, int *pRA,int* pZ, int *pRCODE) const {
+    uint16_t b=flags;
+    reverseBytes(&b, sizeof(b));
+#define GET_ITEM(o)  if(p ## o!= nullptr) *p ## o = (b & o ## _MASK) >> o ## _SHIFT
+    GET_ITEM(QR);
+    GET_ITEM(OPCODE);
+    GET_ITEM(AA);
+    GET_ITEM(TC);
+    GET_ITEM(RD);
+    GET_ITEM(RA);
+    GET_ITEM(Z);
+    GET_ITEM(RCODE);
+#undef GET_ITEM
+}
+
+ssize_t Dns::resolve(Dns &dns, const void *buf, size_t size) {
+    uint8_t * p=(uint8_t *)buf;
+    uint8_t * end = p+size;
+    try{
+        p =  readField(&dns.transactionId , p , sizeof(transactionId) ,end);
+        p =  readField(&dns.flags , p , sizeof(flags) ,end);
+        p =  readField(&dns.questions , p , sizeof(questions) ,end);
+        p =  readField(&dns.answerRRs , p , sizeof(answerRRs) ,end);
+        p =  readField(&dns.authorityRRs , p , sizeof(authorityRRs) ,end);
+        p =  readField(&dns.additionalRRs, p , sizeof(additionalRRs) ,end);
+
+        for(uint16_t i=0;i<dns.questions;i++){
+            Query q;
+            p+= readLabeledData(q.question, p, buf, end, nullptr);
+            p = readField(&q.queryType,p, sizeof(q.queryType),end);
+            p= readField(&q.queryClass,p, sizeof(q.queryClass),end);
+            dns.queries.push_back(move(q));
+        }
+
+        for(uint16_t i=0;i<dns.answerRRs;i++){
+            Answer a;
+            p+= readLabeledData(a.name, p, buf, end, nullptr);
+            p= readField(&a.ansType,p, sizeof(a.ansType),end);
+            p= readField(&a.ansClass,p, sizeof(a.ansClass),end);
+            p = readField(&a.ttl,p, sizeof(a.ttl),end);
+            p= readField(&a.dataLen,p, sizeof(a.dataLen),end);
+            size_t expand=0;
+            switch (a.ansType) {
+                case A:case AAAA:
+                    if(end-p<a.dataLen) throw DNSResolutionException("data length exception :"+to_string(a.dataLen));
+                    a.data.emplace_back(p,a.dataLen);
+                    p+=a.dataLen;
+                    break;
+                case NS: case CNAME: case TXT :case PTR:
+                    p+= readLabeledData(a.data, p, buf, p + a.dataLen, &expand);
+                    a.dataLen=expand;
+                    break;
+                case MX:
+                    a.data.emplace_back(p, sizeof(uint16_t));
+                    p+= sizeof(uint16_t);
+                    p+= readLabeledData(a.data, p, buf, p, &expand);
+                    a.dataLen=expand;
+                    break;
+                default:
+                    if(end-p<a.dataLen) throw DNSResolutionException("data length exception :"+to_string(a.dataLen));
+                    a.data.emplace_back(p,a.dataLen);
+                    p+=a.dataLen;
+            }
+            dns.answers.push_back(move(a));
+        }
+
+        for(uint16_t i=0;i<dns.authorityRRs;i++){
+            Nameserver ns;
+            p+= readLabeledData(ns.name, p, buf, end, nullptr);
+            p= readField(&ns.nsType,p, sizeof(ns.nsType),end);
+            p= readField(&ns.nsClass, p,sizeof(ns.nsClass),end);
+            p= readField(&ns.ttl,p, sizeof(ns.ttl),end);
+            p= readField(&ns.dataLen,p, sizeof(ns.dataLen),end);
+            ns.data=Bytes(p,ns.dataLen);
+            p+=ns.dataLen;
+            dns.nameservers.push_back(move(ns));
+        }
+        for(uint16_t i=0;i<dns.additionalRRs;i++){
+            Additional a;
+            p+= readLabeledData(a.name, p, buf, end, nullptr);
+            p= readField(&a.addType,p, sizeof(a.addType),end);
+            p= readField(&a.addClass,p, sizeof(a.addClass),end);
+            p = readField(&a.ttl,p, sizeof(a.ttl),end);
+            p= readField(&a.dataLen,p, sizeof(a.dataLen),end);
+            size_t expand=0;
+            switch (a.addType) {
+                case A:case AAAA:
+                    if(end-p<a.dataLen) throw DNSResolutionException("data length exception :"+to_string(a.dataLen));
+                    a.data.emplace_back(p,a.dataLen);
+                    p+=a.dataLen;
+                    break;
+                case NS: case CNAME: case TXT: case PTR:
+                    p+= readLabeledData(a.data, p, buf, p + a.dataLen, &expand);
+                    a.dataLen=expand;
+                    break;
+                case MX:
+                    a.data.emplace_back(p, sizeof(uint16_t));
+                    p+= sizeof(uint16_t);
+                    p+= readLabeledData(a.data, p, buf, p, &expand);
+                    a.dataLen=expand;
+                    break;
+                default:
+                    if(end-p<a.dataLen) throw DNSResolutionException("data length exception :"+to_string(a.dataLen));
+                    a.data.emplace_back(p,a.dataLen);
+                    p+=a.dataLen;
+            }
+            dns.additions.push_back(move(a));
+        }
+    }catch (DNSResolutionException& e){
+        Log::printf(LOG_ERROR,e.what());
+        return (uint8_t*)buf-p;
+    }
+    return p-(uint8_t*)buf;
+}
+
+template<class IT>
+static void writeLabeledData(BytesWriter& bw,IT begin,IT end,bool append0){
+    for(auto it=begin;it!=end;++it ){
+        if(it->size>MAX_LABEL_LEN) Log::printf(LOG_WARN,"length of label exceeds : %u",it->size);
+        bw.writeNum((uint8_t)it->size);
+        bw.writeBytes(*it);
+    }
+    if(append0) bw.writeNum((uint8_t)0);
+}
+#define DATA_SHOULD_APPEND0(t) (!IS_IP(t) && t!=TXT)
+ssize_t Dns::bytes(const Dns &dns, void *buf, size_t size) {
+    BytesWriter bw(buf,size);
+    bw.writeNum(dns.transactionId);
+    bw.writeNum(dns.flags);
+    bw.writeNum(dns.questions);
+    bw.writeNum(dns.answerRRs);
+    bw.writeNum(dns.authorityRRs);
+    bw.writeNum(dns.additionalRRs);
+
+    for(auto& q : dns.queries){
+        writeLabeledData(bw,q.question.begin(),q.question.end(), true);
+        bw.writeNum(q.queryType);
+        bw.writeNum(q.queryClass);
+    }
+
+    for(auto& ans : dns.answers){
+        writeLabeledData(bw,ans.name.begin(),ans.name.end(), true);
+        bw.writeNum(ans.ansType);
+        bw.writeNum(ans.ansClass);
+        bw.writeNum(ans.ttl);
+        bw.writeNum(ans.dataLen);
+        if(USE_LABEL(ans.ansType)){
+            if(ans.ansType==MX){
+                bw.writeBytes(ans.data.front());
+            }
+            writeLabeledData(bw,ans.data.begin()+(ans.ansType==MX),ans.data.end(), DATA_SHOULD_APPEND0(ans.ansType));
+        }else{
+            bw.writeBytes(ans.data.front());
+        }
+    }
+
+    for(auto& ns : dns.nameservers){
+        writeLabeledData(bw,ns.name.begin(),ns.name.end(), true);
+        bw.writeNum(ns.nsType);
+        bw.writeNum(ns.nsClass);
+        bw.writeNum(ns.ttl);
+        bw.writeNum(ns.dataLen);
+        bw.writeBytes(ns.data);
+    }
+
+    for(auto& add : dns.additions){
+        writeLabeledData(bw,add.name.begin(),add.name.end(), true);
+        bw.writeNum(add.addType);
+        bw.writeNum(add.addClass);
+        bw.writeNum(add.ttl);
+        bw.writeNum(add.dataLen);
+
+        if(USE_LABEL(add.addType)){
+            if(add.addType==MX){
+                bw.writeBytes(add.data.front());
+            }
+            writeLabeledData(bw,add.data.begin()+(add.addType==MX),add.data.end(), DATA_SHOULD_APPEND0(add.addType));
+        }else{
+            bw.writeBytes(add.data.front());
+        }
+    }
+    return bw.writen();
+}
+
+template<class IT>
+static string domainStr(IT begin,IT end){
+    stringstream ss;
+    int flag=0;
+    for(auto it=begin;it!=end;++it){
+        if(flag++) ss<<".";
+        ss<<(string)*it;
+    }
+    return ss.str();
+}
+static string ipv4Str(void *p) {
+    uint8_t * ip = (uint8_t*)p;
+    return to_string(ip[0])+"."+to_string(ip[1])+"."+to_string(ip[2])+"."+to_string(ip[3]);
+}
+static string ipv6Str(void* p){
+    uint16_t *ip=(uint16_t*)p;
+    string ans = to_string(ip[0]);
+    for(int i=1;i<8;i++){
+        ans.append(":").append(to_string(ip[i]));
+    }
+    return ans;
+}
+string Query::toString() const {
+    stringstream ss;
+    ss<<"question: "<<domainStr(question.begin(),question.end())<<endl;
+    ss<<"type: "<<queryType<<endl;
+    ss<<"class: "<<queryClass<<endl;
+    return ss.str();
+}
+
+string Answer::toString() const {
+    stringstream ss;
+    ss<<"name: "<<domainStr(name.begin(),name.end())<<endl;
+    ss<<"type: "<<ansType<<endl;
+    ss<<"class: "<<ansClass<<endl;
+    ss<<"ttl: "<<ttl<<endl;
+    ss<<"length: "<<dataLen<<endl;
+    ss<<"data :";
+    switch (ansType) {
+        case A:
+            ss<<ipv4Str(data[0].data)<<endl;
+            break;
+        case AAAA:
+            ss<<ipv6Str(data[0].data)<<endl;
+            break;
+            case NS: case CNAME: case TXT:case PTR:
+            ss<< domainStr(data.begin(),data.end())<<endl;
+            break;
+        case MX:
+            ss<<"preference: "<<to_string(*(uint16_t*)data[0].data)<<endl;
+            ss<<domainStr(data.begin()+1,data.end())<<endl;
+            break;
+        default:
+            ss<<"other "<<endl;
+    }
+    return ss.str();
+}
+string Nameserver::toString() const{
+    stringstream ss;
+    ss<<"name: "<<domainStr(name.begin(),name.end())<<endl;
+    ss<<"type: "<<nsType<<endl;
+    ss<<"class: "<<nsClass<<endl;
+    ss<<"ttl: "<<ttl<<endl;
+    ss<<"length: "<<dataLen<<endl;
+    ss<<"data :"<<data.hexStr()<<endl;
+    return ss.str();
+}
+string Dns::toString() const {
+    stringstream ss;
+    char tmp[1024];
+    sprintf(tmp,"transactionId: %u\nflags: %u\nquestions: %u\nansRRs: %u\nauthRRs: %u\naddRRs: %u\n"
+    ,transactionId,flags,questions,answerRRs,authorityRRs,additionalRRs);
+    ss<<tmp;
+    int qn=1,an=1,aun=1,adn=1;
+    for(auto& q : queries){
+        ss<<"query :"<<qn++<<endl;
+        ss<<q.toString()<<endl;
+    }
+    ss<<endl;
+    for(auto& a : answers){
+        ss<<"answer :"<<an++<<endl;
+        ss<<a.toString()<<endl;
+    }
+    ss<<endl;
+    for(auto& a : nameservers){
+        ss<<"authoritative nameserver :"<<aun++<<endl;
+        ss<<a.toString()<<endl;
+    }
+    ss<<endl;
+    for(auto& a : additions){
+        ss<<"addition: "<<adn++<<endl;
+        ss<<a.toString()<<endl;
+    }
+    ss<<endl;
+    return ss.str();
+}
+string Additional::toString() const {
+    stringstream ss;
+    ss<<"name: "<<domainStr(name.begin(),name.end())<<endl;
+    ss<<"type: "<<addType<<endl;
+    ss<<"class: "<<addClass<<endl;
+    ss<<"ttl: "<<ttl<<endl;
+    ss<<"length: "<<dataLen<<endl;
+    ss<<"data :";
+    switch (addType) {
+        case A:
+            ss<<ipv4Str(data[0].data)<<endl;
+            break;
+        case AAAA:
+            ss<<ipv6Str(data[0].data)<<endl;
+            break;
+            case NS: case CNAME: case TXT: case PTR:
+            ss<< domainStr(data.begin(),data.end())<<endl;
+            break;
+        case MX:
+            ss<<"preference: "<<to_string(*(uint16_t*)data[0].data)<<endl;
+            ss<<domainStr(data.begin()+1,data.end())<<endl;
+            break;
+        default:
+            ss<<"other "<<endl;
+    }
+    return ss.str();
+}
