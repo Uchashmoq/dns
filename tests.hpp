@@ -6,11 +6,23 @@
 #include "net/udp.h"
 using namespace std;
 
+#define UDP_DEBUG
+
 #define TEST(t) do{ \
 Dns d;                 \
 Dns::resolve(d,t,sizeof(t)) ;                      \
 cout<<d.toString()<<endl;\
 }while(0)
+
+static void showBytes(const uint8_t* buf,size_t size){
+    for(size_t i=0;i<size;i++){
+        printf("%02x ",buf[i]);
+        if((i+1)%8 == 0) printf("\t");
+        if((i+1)%16 == 0) printf("\n");
+    }
+    printf("\n");
+}
+
 
 
 void testB36(const char* a){
@@ -73,12 +85,13 @@ void test53(int argv,char* args[]){
             closeSocket(sockfd);
             exit(1);
         }
+        //showBytes((::uint8_t*)buf,n);
         Dns d;
         auto res = Dns::resolve(d, buf, n);
         if(res<0){
             cerr<<"resolve error: "<<endl;
         }
-        d.toString();
+        cout<<d.toString()<<endl;
     }
 }
 
