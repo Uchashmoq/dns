@@ -54,8 +54,18 @@ void test53(int argv,char* args[]){
         cerr<<"args: ip port"<<endl;
         ::exit(1);
     }
-    auto sockfd = udpSocket(inetAddr(args[1], ::atoi(args[2])));
+    ::uint16_t port = ::atoi(args[2]);
+    auto sockfd = udpSocket(inetAddr(args[1], port));
+
     if(sockfd<0) exit(1);
+    SA_IN addr0;
+    socklen_t len0 = sizeof(len0);
+    if (getsockname(sockfd, (struct sockaddr *)&addr0, &len0) == -1) {
+        perror("getsockname");
+        exit(EXIT_FAILURE);
+    }
+    printf("bind %s:%u \n", inet_ntoa(addr0.sin_addr),ntohs(addr0.sin_port));
+
     char buf[8192];
     for(;;){
         auto n = readUdp(sockfd,buf, sizeof(buf), nullptr);

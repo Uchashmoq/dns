@@ -19,7 +19,7 @@ int udpSocket(const SA_IN& addr){
         return -1;
     }
     if (bind(sockfd, (SA *)&addr, sizeof(addr)) <0) {
-        std::cerr<<"Bind failed with error code : %d"<<std::endl;
+        std::cerr<<"Bind failed :"<< getLastErrorMessage <<std::endl;
         return -1;
     }
     return sockfd;
