@@ -39,6 +39,7 @@ void Log::printf(log_level_t lv, const char *format, ...) {
         std::vsprintf(tmp,format,args);
         *out<<tmp<<endl;
     }
+
     va_end(args);
     if(lv==LOG_FATAL) exit(1);
 }

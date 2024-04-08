@@ -53,6 +53,9 @@ enum record_t {
     ANY = 255       // 任意类型查询
 };
 
+#define DNS_QUERY 0
+#define DNS_RESP 1
+
 #define IS_IP(ty) (ty==A || ty==AAAA)
 #define IS_SUPPORTED_RECORD(t) ( t==A||t==AAAA||t==NS||t==CNAME||t==TXT||t==PTR||t==MX )
 #define USE_LABEL(t) (t==NS||t==CNAME||t==TXT||t==PTR||t==MX)

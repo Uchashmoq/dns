@@ -3,6 +3,7 @@
 #include <cstring>
 #include <iostream>
 #include "protocol/Dns.h"
+#include "protocol/Packet.h"
 #include "net/udp.h"
 using namespace std;
 
@@ -14,6 +15,20 @@ Dns::resolve(d,t,sizeof(t)) ;                      \
 cout<<d.toString()<<endl;\
 }while(0)
 
+
+void testPacketToQuery(){
+    Packet p;
+    vector<Bytes> dm = {"tun","k72vb42ffx","xyz"};
+    p.sessionId=0x100;
+    p.groupId=0x200;
+    p.dataId=0x300;
+    p.type=1;
+    p.data="aaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbccccccccccccccccddddddddddddddddeeeeeeeeeeeeeeeeffffffffffffffffgggggggggggggggg";
+    Dns d;
+    Packet::PacketToDnsQuery(d,p,dm);
+    cout<<d.toString();
+}
+
 static void showBytes(const uint8_t* buf,size_t size){
     for(size_t i=0;i<size;i++){
         printf("%02x ",buf[i]);
@@ -22,8 +37,6 @@ static void showBytes(const uint8_t* buf,size_t size){
     }
     printf("\n");
 }
-
-
 
 void testB36(const char* a){
     char b[256]={0};

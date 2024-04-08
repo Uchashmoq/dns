@@ -24,11 +24,13 @@ struct Bytes{
         size=size_;
     }
 
-    Bytes(void *data_,size_t size_){
+    Bytes(const void *data_,size_t size_){
         size=size_;
         data=new uint8_t [size];
         memcpy(data,data_,size);
     }
+    Bytes(const char* cstr) : Bytes(cstr, strlen(cstr)){}
+    Bytes(const std::string& str): Bytes(str.c_str(),str.size()){}
     Bytes(const Bytes& other){
         size=other.size;
         data=new uint8_t [size];
@@ -93,7 +95,11 @@ struct Bytes{
     }
 };
 
+class BytesWriter;
+
 class BytesReader {
+    friend size_t copy(BytesWriter& bw,BytesReader& br,size_t n);
+private:
     uint8_t * p;
     size_t size;
     size_t rp;
@@ -122,11 +128,18 @@ public:
         rp+=len;
         return std::move(bytes);
     };
+    BytesReader& jmp(size_t pos=0){
+        if(pos>=size) pos=size-1;
+        rp=pos;
+        return *this;
+    }
     size_t readableBytes() const{return size-rp;}
     size_t readn() const{return rp;}
 };
 
 class BytesWriter{
+    friend size_t copy(BytesWriter& bw,BytesReader& br,size_t n);
+private:
     uint8_t * p;
     size_t size;
     size_t wp;
@@ -154,6 +167,11 @@ public:
         memcpy(p+wp,bytes.data,len);
         wp+=len;
         return len;
+    }
+    BytesWriter& jmp(size_t pos=0){
+        if(pos>=size) pos=size-1;
+        wp=pos;
+        return *this;
     }
     size_t writableBytes()  const {return size-wp;}
     size_t writen() const {return wp;}

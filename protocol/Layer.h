@@ -5,13 +5,15 @@
 #include "../net/udp.h"
 #include "Dns.h"
 #include "Packet.h"
+#include <string>
 class NetworkLayer {
 private:
     int sockfd;
-    std::thread recvThread;
     static const size_t BUF_SIZE;
+    std::string myDnsServerDomainStr;
+    std::vector<Bytes> myDnsServerDomain;
 public:
-    NetworkLayer(int sockfd_):sockfd(sockfd_){}
+    NetworkLayer(int sockfd_ ,const std::string myDnsServerDomainStr_ );
     int read(Packet& packet);
     int write(const Packet& packet);
 };

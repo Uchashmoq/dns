@@ -15,8 +15,9 @@ struct Packet {
     uint16_t dataId;
     uint8_t type;
     Bytes data;
-    static int dnsToPacket(Packet& packet,const Dns& dns);
-    static int PacketToDnsOnlyQuery(Dns& dns,const Packet& packet);
+    static int dnsRespToPacket(Packet& packet,const Dns& dns);
+    static int PacketToDnsQuery(Dns &dns, const Packet &packet , const std::vector<Bytes>& domain);
+
 private:
     static const size_t BUF_SIZE;
 
