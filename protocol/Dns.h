@@ -89,7 +89,6 @@ struct Answer {
     Answer() : ansType(ANY) , ansClass(1) ,dataLen (0){}
     std::string toString() const;
 };
-
 struct Nameserver {
     std::vector<Bytes> name;
     uint16_t nsType;
@@ -100,7 +99,6 @@ struct Nameserver {
     Nameserver() : nsType(ANY) , nsClass(1), ttl(0),dataLen(0){};
     std::string toString() const;
 };
-
 struct Additional{
     std::vector<Bytes> name;
     uint16_t addType;
@@ -111,14 +109,15 @@ struct Additional{
     Additional() : addType(ANY) , addClass(1),ttl(0),dataLen(0){}
     std::string toString() const;
 };
-
 struct Dns {
     Dns() : transactionId(0),flags(0),questions(0),answerRRs(0),authorityRRs(0),additionalRRs(0){}
+    //Convert binary data to dns structure
     static ssize_t resolve(Dns& dns,const void *buf, size_t size);
+    //Convert dns structure to binary data
     static ssize_t bytes(const Dns& dns,void* buf,size_t size);
     void getFlags (int *pQR, int *pOPCODE, int *pAA, int *pTC, int *pRD, int *pRA,int* pZ, int *pRCODE) const ;
+    //for debugging
     std::string toString() const;
-
 
     uint16_t transactionId;
     uint16_t flags;
@@ -128,6 +127,7 @@ struct Dns {
     uint16_t additionalRRs;
     std::vector<Query> queries;
     std::vector<Answer> answers;
+    //Do not focus on this field : nameservers
     std::vector<Nameserver> nameservers;
     std::vector<Additional> additions;
 };

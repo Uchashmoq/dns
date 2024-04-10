@@ -2,6 +2,24 @@
 #include "../lib/Log.h"
 #include <iostream>
 using namespace std;
+/*
+ * for example 'C0 0C is a domain pointer'
+ * In DNS domain compression, C0 0C (hexadecimal notation) represents a specific pointer used for compression. Let's break down its meaning:
+ *
+ *  Understanding the format:
+ *
+ *  A pointer in DNS compression is a single byte value.
+ *  The two most significant bits (leftmost) indicate whether it's a pointer (11 for pointer, 00 for normal label).
+ *  The remaining 6 bits (rightmost) represent the actual offset value.
+ *  Decoding C0 0C:
+ *
+ *  Binary representation: 11000000 00001100
+ *  The first two bits (11) confirm it's a pointer.
+ *  The remaining 6 bits (00001100) translate to decimal 12.
+ *  Interpretation:
+ *
+ *  Therefore, C0 0C signifies a pointer with an offset value of 12. This value points back to a previously encountered domain name segment within the current DNS message.
+ * */
 static bool isDomainPointer(uint8_t * p , uint16_t * offset){
     uint16_t k= *(uint16_t*)p;
     reverseBytes(&k, sizeof(k));
@@ -14,21 +32,36 @@ static bool isDomainPointer(uint8_t * p , uint16_t * offset){
         return false;
     }
 }
-
-static size_t readLabeledData(vector<Bytes>& domain, uint8_t* p, const void* start , uint8_t* end, size_t* expand){
+ /*
+  * read labeled data . The domain name, and the data will be in this form <len0> [b0] [b1] [b2]... <len1> [b0] [b1] [b2]...
+  *
+  * for example  '07  77 61 70 70 61 73 73      05  62 61 69 64 75    03  63 6f 6d' (wappass.baidu.com)
+  *
+  * labeledData : result, {77 61 70 70 61 73 73} , {62 61 69 64 75} , {63 6f 6d}
+  *
+  * p: the start of labeled data : 07
+  *
+  * start: The beginning of the dns request, when encountering dns domain compression, you need to use start+offset to locate the real domain name
+  *
+  * end: End of dns request to prevent illegal memory accesses
+  *
+  * expand:The total size of the data, in the above example, expand=18 . When encountering dns domain compression, expand will be the size of the original domain name
+  * */
+static size_t readLabeledData(vector<Bytes>& labeledData, uint8_t* p, const void* start , uint8_t* end, size_t* expand){
     uint16_t offset,skip=0;
     uint8_t len;
     if(*p==0) return 1;
     if(end-p< sizeof(offset)) throw DNSResolutionException("resolve dns exception : locate domain pointer error");
     if(isDomainPointer(p,&offset)){
-        readLabeledData(domain, (uint8_t *) start + offset, start, end, expand);
+        readLabeledData(labeledData, (uint8_t *) start + offset, start, end, expand);
         return 2;
+        //dns requests where the domain name ends with a domain pointer do not need the last character to be '\0'
     }
     uint8_t *p0=p;
     while (p<end && *p!=0){
         if(end-p< sizeof(len)+1) throw DNSResolutionException("resolve dns exception : read domain");
         if(isDomainPointer(p,&offset)){
-            readLabeledData(domain, (uint8_t *) start + offset, start, end, expand);
+            readLabeledData(labeledData, (uint8_t *) start + offset, start, end, expand);
             p+=2;
             skip=0;
             break;
@@ -37,10 +70,11 @@ static size_t readLabeledData(vector<Bytes>& domain, uint8_t* p, const void* sta
             p++;
             if(expand!= nullptr) (*expand)++;
             if(end-p<len) throw DNSResolutionException("resolve dns exception : read domain");
-            domain.emplace_back(p,len);
+            labeledData.emplace_back(p,len);
             p+=len;
             if(expand!= nullptr) *expand+=len;
             skip=1;
+            //should skip '\0' in the end
         }
     }
     if(expand!= nullptr) *expand+=skip-((p==end)&skip);
@@ -66,7 +100,9 @@ void Dns::getFlags(int *pQR, int *pOPCODE, int *pAA, int *pTC, int *pRD, int *pR
     GET_ITEM(RCODE);
 #undef GET_ITEM
 }
-
+/*
+ * Parses the dns data into a dns structure and returns a negative number if it fails.
+ * */
 ssize_t Dns::resolve(Dns &dns, const void *buf, size_t size) {
     uint8_t * p=(uint8_t *)buf;
     uint8_t * end = p+size;

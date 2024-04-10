@@ -168,7 +168,7 @@ static record_t randRecordType(){
     return A;
 }
 
-static Query writeToQuery(BytesReader br ,const vector<Bytes>& domain,uint8_t cnt){
+static Query writeToQuery(BytesReader& br ,const vector<Bytes>& domain,uint8_t cnt){
     uint8_t encodedPayload[1024], payload[512] , n =2,dlen = domainLen(domain) ,len ;
     Query q;
     q.queryType=randRecordType();
@@ -182,6 +182,9 @@ static Query writeToQuery(BytesReader br ,const vector<Bytes>& domain,uint8_t cn
         q.question.emplace_back(encodedPayload,encodedN);
         n+=encodedN;
         bw.jmp();
+    }
+    for(auto& b : domain){
+        q.question.push_back(b);
     }
     return move(q);
 }
