@@ -10,6 +10,7 @@ int main(int argv,char* args[]) {
     //testQr();
     //TEST(fuck);
     //DIFF(test5,test5w);
-    testA();
+    //testA();
+    echoServer();
     return 0;
 }

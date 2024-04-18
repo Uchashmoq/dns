@@ -2,7 +2,7 @@
 #define DNS_NET_H
 #include <string>
 #include <vector>
-
+#include "../lib/Bytes.hpp"
 #ifdef WIN32
 
 #include <wspiapi.h>

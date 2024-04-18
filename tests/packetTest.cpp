@@ -186,7 +186,7 @@ void testA() {
 
 void echoServer(){
     using namespace std;
-    int sockfd = udpSocket(inetAddr("0.0.0.0",0));
+    int sockfd = udpSocket(inetAddr("192.168.88.128",5354));
     if(sockfd<=0){
         cerr<<getLastErrorMessage()<<endl;
         exit(1);

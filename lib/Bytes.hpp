@@ -5,6 +5,7 @@
 #include <string>
 #include <iomanip>
 #include <sstream>
+#include <stdint.h>
 
 #ifndef BIG_ENDIAN
 #define BIG_ENDIAN 1
