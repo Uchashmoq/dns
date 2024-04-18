@@ -1,12 +1,15 @@
-#include "tests.hpp"
+#include "tests/test1.hpp"
 #include "string"
+#include "tests/packetTest.h"
+#include "tests/diffProblem.h"
 using namespace std;
 
 int main(int argv,char* args[]) {
-    ::srand(time(NULL));
-    //TEST_DNS_BYTES(t39);
-    //TEST(txt);
-    //test53(argv,args);
-    testPacketToQuery();
+    //::srand(time(NULL));
+    //clientSendPackets(argv,args);
+    //testQr();
+    //TEST(fuck);
+    //DIFF(test5,test5w);
+    testA();
     return 0;
 }

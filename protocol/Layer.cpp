@@ -38,5 +38,5 @@ int NetworkLayer::read(Packet &packet) {
 int NetworkLayer::write(const Packet &packet) {
     Dns dns;
 
-
+    return 0;
 }

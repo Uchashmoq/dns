@@ -14,14 +14,14 @@ inline int charValue(char ch){
     }
     return -1;
 }
-inline char itoc(int n){
+char itoc(int n){
     if(n<10) return (char)('0'+n);
     return (char)('a'+n-10);
 }
-inline void randToUpper(char* p){
+void randToUpper(char* p){
     if(IS_ALPHA(*p) && (rand()&1)) *p= TO_UPPER(*p);
 }
-inline void encodeByte(void *dst,uint8_t b){
+void encodeByte(void *dst,uint8_t b){
     int v= b + (abs(rand())%5 )*(UINT8_MAX+1);
     char low,high,*p=(char *)dst;
     low= itoc(v%36);
@@ -29,7 +29,7 @@ inline void encodeByte(void *dst,uint8_t b){
     randToUpper(&low) , randToUpper(&high);
     p[0]=low,p[1]=high;
 }
-inline uint8_t decodeWord(void *src){
+uint8_t decodeWord(void *src){
     char *p=(char *)src;
     char low=p[0] , high=p[1];
     int v = 36* charValue(high)+ charValue(low);

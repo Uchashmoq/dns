@@ -88,7 +88,6 @@ static uint8_t * readField(void* dst,uint8_t* p ,size_t size ,uint8_t *end){
 }
 void Dns::getFlags(int *pQR, int *pOPCODE, int *pAA, int *pTC, int *pRD, int *pRA,int* pZ, int *pRCODE) const {
     uint16_t b=flags;
-    reverseBytes(&b, sizeof(b));
 #define GET_ITEM(o)  if(p ## o!= nullptr) *p ## o = (b & o ## _MASK) >> o ## _SHIFT
     GET_ITEM(QR);
     GET_ITEM(OPCODE);
@@ -99,6 +98,27 @@ void Dns::getFlags(int *pQR, int *pOPCODE, int *pAA, int *pTC, int *pRD, int *pR
     GET_ITEM(Z);
     GET_ITEM(RCODE);
 #undef GET_ITEM
+}
+
+Dns& Dns::setFlag(int mask,int value){
+#define GET_SHIFT(m) case m ## _MASK : \
+    shift = m ## _SHIFT;break
+
+    uint16_t shift;
+    switch (mask) {
+        GET_SHIFT(QR);
+        GET_SHIFT(OPCODE);
+        GET_SHIFT(AA);
+        GET_SHIFT(TC);
+        GET_SHIFT(RD);
+        GET_SHIFT(RA);
+        GET_SHIFT(Z);
+        GET_SHIFT(RCODE);
+        default:
+            return *this;
+    }
+    flags |= (value<<shift) & mask;
+    return *this;
 }
 /*
  * Parses the dns data into a dns structure and returns a negative number if it fails.
@@ -121,7 +141,7 @@ ssize_t Dns::resolve(Dns &dns, const void *buf, size_t size) {
             p= readField(&q.queryClass,p, sizeof(q.queryClass),end);
             dns.queries.push_back(move(q));
         }
-
+#define CHECK_DATA_LEN(len) do{if(end-p<len) throw DNSResolutionException("resolve dns exception : dataLen error :"+ to_string(len));}while(0)
         for(uint16_t i=0;i<dns.answerRRs;i++){
             Answer a;
             p+= readLabeledData(a.name, p, buf, end, nullptr);
@@ -129,6 +149,7 @@ ssize_t Dns::resolve(Dns &dns, const void *buf, size_t size) {
             p= readField(&a.ansClass,p, sizeof(a.ansClass),end);
             p = readField(&a.ttl,p, sizeof(a.ttl),end);
             p= readField(&a.dataLen,p, sizeof(a.dataLen),end);
+            CHECK_DATA_LEN(a.dataLen);
             size_t expand=0;
             switch (a.ansType) {
                 case A:case AAAA:
@@ -161,6 +182,7 @@ ssize_t Dns::resolve(Dns &dns, const void *buf, size_t size) {
             p= readField(&ns.nsClass, p,sizeof(ns.nsClass),end);
             p= readField(&ns.ttl,p, sizeof(ns.ttl),end);
             p= readField(&ns.dataLen,p, sizeof(ns.dataLen),end);
+            CHECK_DATA_LEN(ns.dataLen);
             ns.data=Bytes(p,ns.dataLen);
             p+=ns.dataLen;
             dns.nameservers.push_back(move(ns));
@@ -172,6 +194,7 @@ ssize_t Dns::resolve(Dns &dns, const void *buf, size_t size) {
             p= readField(&a.addClass,p, sizeof(a.addClass),end);
             p = readField(&a.ttl,p, sizeof(a.ttl),end);
             p= readField(&a.dataLen,p, sizeof(a.dataLen),end);
+            CHECK_DATA_LEN(a.dataLen);
             size_t expand=0;
             switch (a.addType) {
                 case A:case AAAA:

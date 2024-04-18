@@ -23,7 +23,7 @@
 #define RCODE_SHIFT  0
 
 /*
- 0: No Error - The query was successful.
+0: No Error - The query was successful.
 1: Format Error - The query was not formatted correctly.
 2: Server Failure - The server encountered an internal error when processing the query.
 3: Name Error - The domain name referenced in the query does not exist.
@@ -116,6 +116,7 @@ struct Dns {
     //Convert dns structure to binary data
     static ssize_t bytes(const Dns& dns,void* buf,size_t size);
     void getFlags (int *pQR, int *pOPCODE, int *pAA, int *pTC, int *pRD, int *pRA,int* pZ, int *pRCODE) const ;
+    Dns &setFlag(int flag, int value);
     //for debugging
     std::string toString() const;
 
@@ -130,5 +131,6 @@ struct Dns {
     //Do not focus on this field : nameservers
     std::vector<Nameserver> nameservers;
     std::vector<Additional> additions;
+
 };
 #endif
