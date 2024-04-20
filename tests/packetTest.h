@@ -15,5 +15,7 @@ void testA();
 
 void echoServer();
 
+void simulateEchoServer();
+
 
 #endif //DNS_PACKETTEST_H

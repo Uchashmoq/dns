@@ -61,7 +61,7 @@ enum record_t {
 #define USE_LABEL(t) (t==NS||t==CNAME||t==TXT||t==PTR||t==MX)
 #define MAX_LABEL_LEN 63
 #define MAX_TOTAL_DOMAIN_LEN 253
-
+#define DATA_SHOULD_APPEND0(t) (!IS_IP(t) && t!=TXT)
 class DNSResolutionException : public std::exception {
 private:
     std::string message;

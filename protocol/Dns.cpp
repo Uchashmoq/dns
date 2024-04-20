@@ -235,15 +235,17 @@ ssize_t Dns::resolve(Dns &dns, const void *buf, size_t size) {
 }
 
 template<class IT>
-static void writeLabeledData(BytesWriter& bw,IT begin,IT end,bool append0){
+static size_t writeLabeledData(BytesWriter& bw,IT begin,IT end,bool append0){
+    auto n0 = bw.writen();
     for(auto it=begin;it!=end;++it ){
         if(it->size>MAX_LABEL_LEN) Log::printf(LOG_WARN,"length of label exceeds : %u",it->size);
         bw.writeNum((uint8_t)it->size);
         bw.writeBytes(*it);
     }
     if(append0) bw.writeNum((uint8_t)0);
+    return bw.writen()-n0;
 }
-#define DATA_SHOULD_APPEND0(t) (!IS_IP(t) && t!=TXT)
+
 ssize_t Dns::bytes(const Dns &dns, void *buf, size_t size) {
     BytesWriter bw(buf,size);
     bw.writeNum(dns.transactionId);
@@ -269,9 +271,10 @@ ssize_t Dns::bytes(const Dns &dns, void *buf, size_t size) {
             if(ans.ansType==MX){
                 bw.writeBytes(ans.data.front());
             }
-            writeLabeledData(bw,ans.data.begin()+(ans.ansType==MX),ans.data.end(), DATA_SHOULD_APPEND0(ans.ansType));
+            auto nw = writeLabeledData(bw,ans.data.begin()+(ans.ansType==MX),ans.data.end(), DATA_SHOULD_APPEND0(ans.ansType));
+            printf("%d\n",nw);
         }else{
-            bw.writeBytes(ans.data.front());
+           bw.writeBytes(ans.data.front());
         }
     }
 

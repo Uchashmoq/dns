@@ -160,7 +160,7 @@ static record_t randRecordType(){
 }
 
 static Query writeToQuery(BytesReader& br ,const vector<Bytes>& domain,uint8_t cnt){
-    uint8_t encodedPayload[1024], payload[512] , n =2,dlen = domainLen(domain) ,len ;
+    uint8_t encodedPayload[1024], payload[512] , n =0,dlen = domainLen(domain) ,len ;
     Query q;
     q.queryType=randRecordType();
     BytesWriter bw(payload,sizeof(payload));
@@ -202,7 +202,7 @@ static record_t randRespType(){
 }
 
 static Answer writeToAnswer(BytesReader& br,uint8_t cnt,const vector<Bytes>& domain){
-    uint8_t encodedPayload[1024],payload[512],len,n=2;
+    uint8_t encodedPayload[1024],payload[512],len,n=0;
     Answer a;
     a.name= randDomain(domain);
     a.ansType=randRespType();
@@ -214,10 +214,11 @@ static Answer writeToAnswer(BytesReader& br,uint8_t cnt,const vector<Bytes>& dom
         copy(bw,br,len);
         auto encodedN = base36encode(encodedPayload,payload,bw.writen());
         a.data.emplace_back(encodedPayload,encodedN);
-        n+=encodedN;
+        n+=encodedN+1;
         bw.jmp();
     }
     a.dataLen=n;
+    if(DATA_SHOULD_APPEND0(a.ansType)) a.dataLen+=1;
     return move(a);
 }
 

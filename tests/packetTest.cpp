@@ -221,6 +221,57 @@ void echoServer(){
     }
 
 }
+void repeat(std::string& s,int n){
+    auto s1 = s;
+    for(int i=0;i<n;i++){s+=s1;}
+}
+void simulateEchoServer() {
+    using namespace std;
+    Packet p1,p2,p3,p4;
+    Dns d1,d2,d3,d4;
+    string msg = "a";
+    repeat(msg,1000);
+    auto myDom = cstrToDomain("tun.k72vb42ffx.xyz");
+    p1.dnsTransactionId=0x1234;
+    p1.sessionId=0x1234;
+    p1.groupId=0x1234;
+    p1.dataId=0x1234;
+    p1.type='x';
+    p1.data=msg;
+    const int size = 1024*128;
+    uint8_t buf1[size]={0} , buf2[size]={0};
+
+    Packet::packetToDnsQuery(d1,p1,myDom);
+    ssize_t n1 = Dns::bytes(d1, buf1, sizeof(buf1));
+
+    cout<<"p1:"<<endl<<p1.toString()<<endl<<"d1:"<<d1.toString();
+    pbytes(buf1,n1);
+
+    auto res1 = Dns::resolve(d2,buf1,n1);
+    if(res1<0) {
+        cerr<<"resolve error1"<<endl;
+        exit(1);
+    }
+    Packet::dnsQueryToPacket(p2,d2,myDom);
+    cout<<(string)p2.data<<endl;
+    p2.data+="!!!";
+    p3=p2;
+    Packet::packetToDnsResp(d3,d2.transactionId,p3,myDom);
+    //cout<<"d3:\n"<<d3.toString();
+    auto n2 = Dns::bytes(d3,buf2, sizeof(buf2));
+
+    auto res2 = Dns::resolve(d4,buf2,n2);
+    if(res2<0) {
+        cerr<<"resolve error2"<<endl;
+        exit(1);
+    }
+
+    Packet::dnsRespToPacket(p4,d4);
+    pbytes(buf2,n2);
+    cout<<"d4:"<<endl<<d4.toString()<<"p4:"<<endl<<p4.toString();
+    cout<<(string)p4.data;
+
+}
 
 
 
