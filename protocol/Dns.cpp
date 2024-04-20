@@ -99,7 +99,15 @@ void Dns::getFlags(int *pQR, int *pOPCODE, int *pAA, int *pTC, int *pRD, int *pR
     GET_ITEM(RCODE);
 #undef GET_ITEM
 }
-
+string flagsStr(const Dns& d){
+    int QR=0,OPCODE=0,AA=0,TC=0,RD=0,RA=0,RCODE=0;
+    char buf[128];
+    d.getFlags(&QR,&OPCODE,&AA,&TC,&RD,&RA, nullptr,&RCODE);
+    sprintf(buf,"QR=%d,OPCODE=%d,AA=%d,TC=%d,RD=%d,RA=%d,RCODE=%d\n",
+           QR,OPCODE,AA,TC,RD,RA,RCODE
+    );
+    return buf;
+}
 Dns& Dns::setFlag(int mask,int value){
 #define GET_SHIFT(m) case m ## _MASK : \
     shift = m ## _SHIFT;break
@@ -365,8 +373,8 @@ string Nameserver::toString() const{
 string Dns::toString() const {
     stringstream ss;
     char tmp[1024];
-    sprintf(tmp,"transactionId: %u\nflags: %u\nquestions: %u\nansRRs: %u\nauthRRs: %u\naddRRs: %u\n"
-    ,transactionId,flags,questions,answerRRs,authorityRRs,additionalRRs);
+    sprintf(tmp,"transactionId: %u\nflags: %u (%s)\nquestions: %u\nansRRs: %u\nauthRRs: %u\naddRRs: %u\n"
+    ,transactionId,flags, flagsStr(*this).c_str(),questions,answerRRs,authorityRRs,additionalRRs);
     ss<<tmp;
     int qn=1,an=1,aun=1,adn=1;
     for(auto& q : queries){

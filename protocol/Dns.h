@@ -133,4 +133,5 @@ struct Dns {
     std::vector<Additional> additions;
 
 };
+std::string flagsStr(const Dns& d);
 #endif

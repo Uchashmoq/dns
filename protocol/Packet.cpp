@@ -235,7 +235,7 @@ int Packet::packetToDnsQuery(Dns &dns, const Packet &packet , const vector<Bytes
     }
     return 0;
 }
-int Packet::packetToDnsResp(Dns &dns, const Packet &packet,const vector<Bytes>& domain) {
+int Packet::packetToDnsResp(Dns &dns,uint16_t transactionId ,const Packet &packet,const vector<Bytes>& domain) {
     uint8_t unencoded[BUF_SIZE];
     BytesWriter bw(unencoded, sizeof(unencoded));
     writePacketHead(bw,packet);
@@ -245,6 +245,7 @@ int Packet::packetToDnsResp(Dns &dns, const Packet &packet,const vector<Bytes>& 
     while(br.readableBytes()>0){
         dns.answers.push_back(writeToAnswer(br,(uint8_t)(++dns.answerRRs),domain));
     }
+    dns.transactionId=transactionId;
     return 0;
 }
 

@@ -6,10 +6,11 @@
 #include "Dns.h"
 #include <cstring>
 struct Packet {
-    Packet():sessionId(0),groupId(0),dataId(0),type(0),qr(0){
+    Packet():dnsTransactionId(0),sessionId(0),groupId(0),dataId(0),type(0),qr(0){
         memset(&addr,0, sizeof(addr));
     }
     SA_IN addr;
+    uint16_t dnsTransactionId;
     uint16_t sessionId;
     uint16_t groupId;
     uint16_t dataId;
@@ -20,7 +21,7 @@ struct Packet {
     static int dnsRespToPacket(Packet& packet,const Dns& dns);
     static int packetToDnsQuery(Dns &dns, const Packet &packet , const std::vector<Bytes>& domain);
     static int dnsQueryToPacket(Packet& packet,const Dns& dns, const std::vector<Bytes>& domain);
-    static int packetToDnsResp(Dns& dns,const Packet& packet, const std::vector<Bytes>& domain);
+    static int packetToDnsResp(Dns& dns,uint16_t transactionId ,const Packet& packet,const std::vector<Bytes>& domain);
     std::string toString();
 
 private:

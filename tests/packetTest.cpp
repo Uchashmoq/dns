@@ -30,13 +30,6 @@ void diff(uint8_t* b1,int len1,uint8_t* b2,int len2){
 }
 
 
-void showFlags(const Dns& d){
-    int QR=0,OPCODE=0,AA=0,TC=0,RD=0,RA=0,RCODE=0;
-    d.getFlags(&QR,&OPCODE,&AA,&TC,&RD,&RA, nullptr,&RCODE);
-    printf("QR=%d,OPCODE=%d,AA=%d,TC=%d,RD=%d,RA=%d,RCODE=%d\n",
-           QR,OPCODE,AA,TC,RD,RA,RCODE
-           );
-}
 
 static void showClientReceivedData(uint8_t* p,size_t n){
     using namespace std;
@@ -60,7 +53,6 @@ void testQr(){
     d.setFlag(RD_MASK,1);
     d.setFlag(QR_MASK,DNS_RESP);
     d.setFlag(RA_MASK,1);
-    showFlags(d);
     ::printf("%x",d.flags);
 }
 
@@ -186,7 +178,7 @@ void testA() {
 
 void echoServer(){
     using namespace std;
-    int sockfd = udpSocket(inetAddr("192.168.88.128",5354));
+    int sockfd = udpSocket(inetAddr("0.0.0.0",5354));
     if(sockfd<=0){
         cerr<<getLastErrorMessage()<<endl;
         exit(1);
@@ -197,6 +189,7 @@ void echoServer(){
         SA_IN from;
         SET_ZERO(from);
         auto n = readUdp(sockfd,buf,sizeof(buf),&from);
+
         if(n<=0){
             cerr<<getLastErrorMessage()<<endl;
             break;
@@ -219,8 +212,10 @@ void echoServer(){
         p.data+=Bytes("!!!");
 
         Dns resp;
-        Packet::packetToDnsResp(resp,p,myDom);
+        Packet::packetToDnsResp(resp,d.transactionId,p,myDom);
         ssize_t respN = Dns::bytes(resp, buf, sizeof(buf));
+        puts("send :");
+        pbytes(buf,respN);
         writeUdp(sockfd,buf,respN,from);
     }
 
