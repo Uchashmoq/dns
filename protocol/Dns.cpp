@@ -271,8 +271,7 @@ ssize_t Dns::bytes(const Dns &dns, void *buf, size_t size) {
             if(ans.ansType==MX){
                 bw.writeBytes(ans.data.front());
             }
-            auto nw = writeLabeledData(bw,ans.data.begin()+(ans.ansType==MX),ans.data.end(), DATA_SHOULD_APPEND0(ans.ansType));
-            printf("%d\n",nw);
+             writeLabeledData(bw,ans.data.begin()+(ans.ansType==MX),ans.data.end(), DATA_SHOULD_APPEND0(ans.ansType));
         }else{
            bw.writeBytes(ans.data.front());
         }

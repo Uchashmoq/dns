@@ -205,7 +205,8 @@ static Answer writeToAnswer(BytesReader& br,uint8_t cnt,const vector<Bytes>& dom
     uint8_t encodedPayload[1024],payload[512],len,n=0;
     Answer a;
     a.name= randDomain(domain);
-    a.ansType=randRespType();
+    a.ansType=CNAME;
+    a.ttl=20;
     BytesWriter bw(payload,sizeof(payload));
     bw.writeNum(cnt);
     while(br.readableBytes()>0){

@@ -59,7 +59,7 @@ void testQr(){
 
 void clientSendPackets(int argv,char* args[]){
     using namespace std;
-    const char *myDomain, *localDnsAddr="114.114.114.114";
+    const char *myDomain, *localDnsAddr="47.108.118.112";
     if(argv<2){
         cerr<<"arg1 : <myDomain> , arg2 : [localDnsAddr]"<<endl;
         exit(1);
