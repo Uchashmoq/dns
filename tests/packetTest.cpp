@@ -59,7 +59,7 @@ void testQr(){
 
 void clientSendPackets(int argv,char* args[]){
     using namespace std;
-    const char *myDomain, *localDnsAddr="192.168.88.128";
+    const char *myDomain, *localDnsAddr="114.114.114.114";
     if(argv<2){
         cerr<<"arg1 : <myDomain> , arg2 : [localDnsAddr]"<<endl;
         exit(1);
@@ -89,7 +89,7 @@ void clientSendPackets(int argv,char* args[]){
         }
     });
 
-    SA_IN dnsServerAddr= inetAddr(localDnsAddr,5354);
+    SA_IN dnsServerAddr= inetAddr(localDnsAddr,53);
     auto domain = cstrToDomain(myDomain);
     uint8_t sendBuf[1024];
     for(;;){
@@ -103,7 +103,7 @@ void clientSendPackets(int argv,char* args[]){
         packet.data=msg;
 
         Dns dns;
-        Packet::packetToDnsQuery(dns,packet,domain);
+        Packet::packetToDnsQuery(dns,::rand(),packet,domain);
 
         //故意的
         //dns.flags=1;
@@ -179,7 +179,7 @@ void testA() {
 
 void echoServer(){
     using namespace std;
-    int sockfd = udpSocket(inetAddr("0.0.0.0",5354));
+    int sockfd = udpSocket(inetAddr("0.0.0.0",53));
     if(sockfd<=0){
         cerr<<getLastErrorMessage()<<endl;
         exit(1);
@@ -196,15 +196,12 @@ void echoServer(){
             break;
         }
         cout<<"received "<<n<<" bytes from "<< sockaddr_inStr(from)<<endl;
-        pbytes(buf,n);
         Dns d;
-
         if (Dns::resolve(d, buf, n)<0){
             cerr<<"dns error"<<endl;
             continue;
         }
         cout<<d.toString()<<endl;
-
         Packet p;
         if (Packet::dnsQueryToPacket(p, d, myDom)<0){
             continue;
@@ -216,8 +213,8 @@ void echoServer(){
         Packet::packetToDnsResp(resp,d.transactionId,p,myDom);
         ssize_t respN = Dns::bytes(resp, buf, sizeof(buf));
         puts("send :");
-        pbytes(buf,respN);
         writeUdp(sockfd,buf,respN,from);
+        cout<<"sent "<<respN<<endl<<resp.toString();
     }
 
 }
@@ -241,7 +238,7 @@ void simulateEchoServer() {
     const int size = 1024*128;
     uint8_t buf1[size]={0} , buf2[size]={0};
 
-    Packet::packetToDnsQuery(d1,p1,myDom);
+    Packet::packetToDnsQuery(d1,::rand(),p1,myDom);
     ssize_t n1 = Dns::bytes(d1, buf1, sizeof(buf1));
 
     cout<<"p1:"<<endl<<p1.toString()<<endl<<"d1:"<<d1.toString();

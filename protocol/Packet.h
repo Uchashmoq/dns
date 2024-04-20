@@ -19,7 +19,7 @@ struct Packet {
     std::vector<Query> originalQueries;
     Bytes data;
     static int dnsRespToPacket(Packet& packet,const Dns& dns);
-    static int packetToDnsQuery(Dns &dns, const Packet &packet , const std::vector<Bytes>& domain);
+    static int packetToDnsQuery(Dns &dns, uint16_t transactionId,const Packet &packet , const std::vector<Bytes>& domain);
     static int dnsQueryToPacket(Packet& packet,const Dns& dns, const std::vector<Bytes>& domain);
     static int packetToDnsResp(Dns& dns,uint16_t transactionId ,const Packet& packet,const std::vector<Bytes>& domain);
     std::string toString();

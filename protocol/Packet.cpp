@@ -223,8 +223,9 @@ static Answer writeToAnswer(BytesReader& br,uint8_t cnt,const vector<Bytes>& dom
 }
 
 
-int Packet::packetToDnsQuery(Dns &dns, const Packet &packet , const vector<Bytes>& domain) {
+int Packet::packetToDnsQuery(Dns &dns, uint16_t transactionId,const Packet &packet , const vector<Bytes>& domain) {
     uint8_t unencoded[BUF_SIZE];
+    dns.transactionId=transactionId;
     BytesWriter bw(unencoded, sizeof(unencoded));
     writePacketHead(bw,packet);
     bw.writeBytes(packet.data);

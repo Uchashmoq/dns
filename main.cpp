@@ -5,13 +5,13 @@
 using namespace std;
 
 int main(int argv,char* args[]) {
-    //::srand(time(NULL));
-    //clientSendPackets(argv,args);
+    //srand(time(NULL));
+    clientSendPackets(argv,args);
     //testQr();
     //TEST(E1154);
     //DIFF(test5,test5w);
     //testA();
    // echoServer();
-   simulateEchoServer();
+  // simulateEchoServer();
     return 0;
 }

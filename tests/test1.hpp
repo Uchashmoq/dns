@@ -47,7 +47,7 @@ void testPacketToQuery(){
     p.type=1;
     p.data="abcdefghijklmn";
     Dns d;
-    Packet::packetToDnsQuery(d,p,dm);
+    Packet::packetToDnsQuery(d,::rand(),p,dm);
     Packet::dnsQueryToPacket(p1,d,dm);
     auto s1=p.toString() , s2 = p1.toString();
     if(s1==s2) cout<<"ok"<<endl;
