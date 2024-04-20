@@ -149,7 +149,7 @@ ssize_t Dns::resolve(Dns &dns, const void *buf, size_t size) {
             p= readField(&q.queryClass,p, sizeof(q.queryClass),end);
             dns.queries.push_back(move(q));
         }
-#define CHECK_DATA_LEN(len) do{if(end-p<len) throw DNSResolutionException("resolve dns exception : dataLen error :"+ to_string(len));}while(0)
+#define CHECK_DATA_LEN(len) do{if(end-p<len-1) throw DNSResolutionException("resolve dns exception : dataLen error :"+ to_string(len));}while(0)
         for(uint16_t i=0;i<dns.answerRRs;i++){
             Answer a;
             p+= readLabeledData(a.name, p, buf, end, nullptr);
@@ -157,7 +157,7 @@ ssize_t Dns::resolve(Dns &dns, const void *buf, size_t size) {
             p= readField(&a.ansClass,p, sizeof(a.ansClass),end);
             p = readField(&a.ttl,p, sizeof(a.ttl),end);
             p= readField(&a.dataLen,p, sizeof(a.dataLen),end);
-            CHECK_DATA_LEN(a.dataLen);
+           CHECK_DATA_LEN(a.dataLen);
             size_t expand=0;
             switch (a.ansType) {
                 case A:case AAAA:

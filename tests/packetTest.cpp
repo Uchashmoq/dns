@@ -45,6 +45,7 @@ static void showClientReceivedData(uint8_t* p,size_t n){
         return;
     }
     cout<<"packet : "<<packet.toString()<<endl;
+    cout<<(string)packet.data<<endl;
 }
 
 void testQr(){
@@ -58,7 +59,7 @@ void testQr(){
 
 void clientSendPackets(int argv,char* args[]){
     using namespace std;
-    const char *myDomain, *localDnsAddr="8.8.8.8";
+    const char *myDomain, *localDnsAddr="192.168.88.128";
     if(argv<2){
         cerr<<"arg1 : <myDomain> , arg2 : [localDnsAddr]"<<endl;
         exit(1);
@@ -88,7 +89,7 @@ void clientSendPackets(int argv,char* args[]){
         }
     });
 
-    SA_IN dnsServerAddr= inetAddr(localDnsAddr,53);
+    SA_IN dnsServerAddr= inetAddr(localDnsAddr,5354);
     auto domain = cstrToDomain(myDomain);
     uint8_t sendBuf[1024];
     for(;;){

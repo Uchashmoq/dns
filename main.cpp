@@ -6,11 +6,11 @@ using namespace std;
 
 int main(int argv,char* args[]) {
     //::srand(time(NULL));
-    //clientSendPackets(argv,args);
+    clientSendPackets(argv,args);
     //testQr();
-    //TEST(fuck);
+    //TEST(E1112);
     //DIFF(test5,test5w);
     //testA();
-    echoServer();
+    //echoServer();
     return 0;
 }
