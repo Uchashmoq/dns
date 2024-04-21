@@ -6,7 +6,9 @@
 #include <cstdlib>
 #define MAX_UNENCODED_DATA_LEN_OF_LABEL (MAX_LABEL_LEN/2 -3)
 using namespace std;
-const size_t Packet::BUF_SIZE=10240;
+const size_t Packet::BUF_SIZE=1024*16;
+const uint32_t maxTTL=300;
+const ::uint32_t  minTTL=20;
 
 struct _Payload{
     uint8_t* hpDecoded;
@@ -15,9 +17,14 @@ struct _Payload{
     bool operator<(const _Payload& other ) const{
         return hpDecoded[0]<other.hpDecoded[0];
     }
+    void destroy(){delete[] hpDecoded , len=0;}
 };
 
-static bool getPayloadFromData(_Payload& pld ,const vector<Bytes>& data,size_t maxLen){
+static int randRange(int min,int max){
+    return min + rand()%(max-min);
+}
+
+static bool getPayloadFromLabeledData(_Payload& pld ,const vector<Bytes>& data,size_t maxLen){
     uint8_t *tmp = new uint8_t[maxLen];
     BytesWriter bw(tmp,maxLen);
     for(auto& b : data){
@@ -28,6 +35,7 @@ static bool getPayloadFromData(_Payload& pld ,const vector<Bytes>& data,size_t m
     delete[] tmp;
     if(n<0){
         delete[] decoded;
+        decoded= nullptr;
         Log::printf(LOG_DEBUG,"fail to base36 decode from data");
         return false;
     }
@@ -38,50 +46,86 @@ static bool getPayloadFromData(_Payload& pld ,const vector<Bytes>& data,size_t m
 
 static void clearPayloads(vector<_Payload>& payloads){
     for(auto& p : payloads){
-        delete[] p.hpDecoded;
-        p.hpDecoded= nullptr;
+        p.destroy();
     }
 }
 
 static size_t splicePayloads(uint8_t* buf,size_t len,const vector<_Payload>& payloads){
+
     BytesWriter bw(buf,len);
     for(auto& pld : payloads){
-        bw.writeBytes(pld.hpDecoded+1,pld.len-1);
+        if(pld.len>0){
+            bw.writeBytes(pld.hpDecoded+1,pld.len-1);
+        }
     }
     return bw.writen();
 }
 
-static ssize_t getValuablePayload(uint8_t* buf,size_t len,const Dns& dns){
-    vector<_Payload> answerPayloads , additionPayloads;
-    ssize_t resultSize=0;
-
-    for(auto& a : dns.answers){
-       _Payload payload;
-       if(!getPayloadFromData(payload,a.data,a.dataLen)) {
-           resultSize=-1;
-           goto clear;
-       }
-       answerPayloads.push_back(payload);
-    }
-
-    for(auto& a : dns.additions){
-        _Payload payload;
-        if(!getPayloadFromData(payload,a.data,a.dataLen)) {
-            resultSize=-1;
-            goto clear;
+static size_t splicePayloads(BytesWriter& bw,const vector<_Payload>& payloads){
+    auto n0=bw.writen();
+    for(auto& pld : payloads){
+        if(pld.len>0){
+            bw.writeBytes(pld.hpDecoded+1,pld.len-1);
         }
-        additionPayloads.push_back(payload);
     }
-    sort(answerPayloads.begin(),answerPayloads.end());
-    sort(additionPayloads.begin() , additionPayloads.end());
+    return bw.writen()-n0;
+}
 
-    resultSize+= splicePayloads(buf,len,answerPayloads);
-    resultSize+= splicePayloads(buf+resultSize,len-resultSize,additionPayloads);
 
-clear:
-    clearPayloads(answerPayloads);
-    clearPayloads(additionPayloads);
-    return resultSize;
+
+static ssize_t getPayloadFromAnswers(BytesWriter &bw, const vector<Answer> &answers) {
+    vector<_Payload> payloads;
+    ssize_t n=-1;
+    for(const auto& ans : answers){
+        if(USE_LABEL(ans.ansType)){
+            _Payload payload;
+            if(getPayloadFromLabeledData(payload,ans.data,bw.writableBytes())){
+                payloads.push_back(payload);
+            }else{
+                goto clear;
+            }
+        }
+    }
+    sort(payloads.begin(),payloads.end());
+    n=splicePayloads(bw,payloads);
+    clear:
+    clearPayloads(payloads);
+    return n;
+}
+static ssize_t getPayloadFromAdditional(BytesWriter& bw,const vector<Additional>& additional){
+    vector<_Payload> payloads;
+    ssize_t n=-1;
+    for(const auto& add : additional){
+        if(USE_LABEL(add.addType)){
+            _Payload payloadInName;
+            if(getPayloadFromLabeledData(payloadInName,add.name,bw.writableBytes())){
+                payloads.push_back(payloadInName);
+            }else{
+                goto clear;
+            }
+            _Payload payloadInData;
+            if(getPayloadFromLabeledData(payloadInData,add.data,bw.writableBytes())){
+                payloads.push_back(payloadInData);
+            }else{
+                goto clear;
+            }
+        }
+    }
+    sort(payloads.begin(),payloads.end());
+    n=splicePayloads(bw,payloads);
+    clear:
+    clearPayloads(payloads);
+    return n;
+}
+static ssize_t getValuablePayload(BytesWriter& bw,const Dns& dns){
+    ssize_t answerPayloadLen , additionalPayloadLen;
+    if((answerPayloadLen=getPayloadFromAnswers(bw,dns.answers) )<0){
+        return -1;
+    }
+    if((additionalPayloadLen= getPayloadFromAdditional(bw,dns.additions))<0){
+        return -1;
+    }
+    return answerPayloadLen+additionalPayloadLen;
 }
 
 static void writePacketHead(BytesWriter& bw,const Packet& packet){
@@ -131,11 +175,14 @@ int Packet::dnsRespToPacket(Packet &packet, const Dns &dns) {
     }
     packet.qr=qr;
     uint8_t payload[BUF_SIZE];
-    auto payloadLen  = getValuablePayload(payload,sizeof(payload),dns);
+    BytesWriter bw(payload, sizeof(payload));
+    auto payloadLen  = getValuablePayload(bw,dns);
     if (payloadLen<0) return -1;
 
     BytesReader br(payload,payloadLen);
-    readPacketHead(packet,br);
+    if(readPacketHead(packet,br)<0){
+        return -1;
+    }
     packet.data=br.readBytes(br.readableBytes());
     return 0;
 }
@@ -181,46 +228,21 @@ static Query writeToQuery(BytesReader& br ,const vector<Bytes>& domain,uint8_t c
 }
 
 
-static vector<Bytes> randDomain(const vector<Bytes>& domain){
-    char tmp[8];
-    uint32_t  n=(uint32_t)rand()%3+3;
-    for(uint32_t i=0;i<n;i++){
-        tmp[i]= itoc((uint8_t)rand()%26+10);
-    }
-    vector<Bytes> v;
-    v.emplace_back(tmp,n);
-    for(auto& d : domain){
-        v.push_back(d);
-    }
-    return move(v);
-}
-
-static record_t randRespType(){
-    uint8_t x = (uint8_t)rand();
-    static record_t arr[]={TXT,CNAME,PTR};
-    return arr[x%3];
-}
-
-static Answer writeToAnswer(BytesReader& br,uint8_t cnt,const vector<Bytes>& domain){
+static size_t writeToLabeledData(BytesReader& br,uint8_t cnt, vector<Bytes>& dst,size_t maxLen,bool append0){
     uint8_t encodedPayload[1024],payload[512],len,n=0;
-    Answer a;
-    a.name= randDomain(domain);
-    a.ansType=CNAME;
-    a.ttl=20;
     BytesWriter bw(payload,sizeof(payload));
     bw.writeNum(cnt);
     while(br.readableBytes()>0){
         len = randLabelSize();
-        if(len*2+n>=MAX_TOTAL_DOMAIN_LEN) break;
+        if(len*2+n>=maxLen) break;
         copy(bw,br,len);
         auto encodedN = base36encode(encodedPayload,payload,bw.writen());
-        a.data.emplace_back(encodedPayload,encodedN);
+        dst.emplace_back(encodedPayload,encodedN);
         n+=encodedN+1;
         bw.jmp();
     }
-    a.dataLen=n;
-    if(DATA_SHOULD_APPEND0(a.ansType)) a.dataLen+=1;
-    return move(a);
+    if(append0&&n>0) n++;
+    return n;
 }
 
 
@@ -238,17 +260,88 @@ int Packet::packetToDnsQuery(Dns &dns, uint16_t transactionId,const Packet &pack
     }
     return 0;
 }
-int Packet::packetToDnsResp(Dns &dns,uint16_t transactionId ,const Packet &packet,const vector<Bytes>& domain) {
+
+static uint32_t randTTL() {
+    return randRange(minTTL,maxTTL);
+}
+
+void writeToAnswerDataA(Answer& a){
+    uint8_t ip[4];
+    for(int i=0;i< sizeof(ip);i++){
+        ip[i]= randRange(1,UINT8_MAX-1);
+    }
+    a.data.emplace_back(ip,sizeof(ip));
+    a.dataLen= sizeof(ip);
+}
+void writeToAnswerDataAAAA(Answer& a){
+    uint16_t ip[8];
+    for(int i=0;i< sizeof(ip);i++){
+        ip[i]= randRange(1,UINT16_MAX-1);
+    }
+    a.data.emplace_back(ip,sizeof(ip));
+    a.dataLen= sizeof(ip);
+}
+
+static Answer writeToAnswer(BytesReader& br, const Query& originalQuery, uint8_t cnt){
+    Answer a;
+    a.ansType=originalQuery.queryType;
+    a.ansClass=originalQuery.queryClass;
+    a.ttl=randTTL();
+    a.name=originalQuery.question;
+
+    switch (a.ansType) {
+        case A:
+            writeToAnswerDataA(a);
+            break;
+        case AAAA:
+            writeToAnswerDataAAAA(a);
+            break;
+        default:
+            a.dataLen= writeToLabeledData(br,cnt,a.data,MAX_TOTAL_DOMAIN_LEN, DATA_SHOULD_APPEND0(a.ansType));
+    }
+    return move(a);
+}
+
+static record_t randAdditionalType(){
+    record_t t[]={NS,CNAME,TXT,PTR};
+    return t[randRange(0,4)];
+}
+
+static Additional writeToAdditional(BytesReader& br,uint8_t cnt){
+    Additional a;
+    a.addType=randAdditionalType();
+    writeToLabeledData(br,cnt,a.name,MAX_TOTAL_DOMAIN_LEN, true);
+    a.dataLen=writeToLabeledData(br,cnt+1,a.data,MAX_TOTAL_DOMAIN_LEN, DATA_SHOULD_APPEND0(a.addType));
+    return move(a);
+}
+
+int Packet::packetToDnsResp(Dns &dns,uint16_t transactionId ,const Packet &packet) {
+    dns.transactionId=transactionId;
+    dns.questions=packet.originalQueries.size();
+    dns.queries=packet.originalQueries;
+    dns.setFlag(QR_MASK,DNS_RESP);
+
+
     uint8_t unencoded[BUF_SIZE];
     BytesWriter bw(unencoded, sizeof(unencoded));
     writePacketHead(bw,packet);
     bw.writeBytes(packet.data);
-    dns.setFlag(QR_MASK,DNS_RESP);
     BytesReader br(unencoded,bw.writen());
-    while(br.readableBytes()>0){
-        dns.answers.push_back(writeToAnswer(br,(uint8_t)(++dns.answerRRs),domain));
+
+    for(size_t i=0;i<packet.originalQueries.size() && br.readableBytes()>0 ;i++){
+        if(i>=UINT8_MAX-1) Log::printf(LOG_WARN,"in packetToDnsResp, ansCnt exceeds range of uint8_t");
+        dns.answers.push_back(writeToAnswer(br, packet.originalQueries[i],i+1));
     }
-    dns.transactionId=transactionId;
+    dns.answerRRs=dns.answers.size();
+
+    uint16_t addCnt=1;
+    while (br.readableBytes()>0){
+        if(addCnt>=UINT8_MAX-1) Log::printf(LOG_WARN,"in packetToDnsResp, addCnt exceeds range of uint8_t");
+        dns.additions.push_back(writeToAdditional(br,addCnt));
+        addCnt+=2;
+    }
+    dns.additionalRRs=dns.additions.size();
+
     return 0;
 }
 
@@ -329,8 +422,6 @@ int Packet::dnsQueryToPacket(Packet &packet, const Dns &dns, const vector<Bytes>
     return 0;
 }
 
-
-
 std::string Packet::toString() {
     stringstream ss;
     ss<<"sessionId: "<<sessionId<<endl;
@@ -340,4 +431,5 @@ std::string Packet::toString() {
     ss<<"data: "<<data.hexStr()<<endl;
     return ss.str();
 }
+
 

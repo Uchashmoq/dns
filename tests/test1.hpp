@@ -26,7 +26,7 @@ void testPacketToResp(){
     p.type=1;
     p.data="abcdefghijklmn";
     Dns d;
-    Packet::packetToDnsResp(d,rand(),p,dm);
+    Packet::packetToDnsResp(d,rand(),p);
     Packet::dnsRespToPacket(p1,d);
     auto s1=p.toString() , s2 = p1.toString();
     if(s1==s2) cout<<"ok"<<endl;

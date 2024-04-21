@@ -6,6 +6,7 @@
 #include <iomanip>
 #include <sstream>
 #include <stdint.h>
+#include <iostream>
 
 #ifndef BIG_ENDIAN
 #define BIG_ENDIAN 1
@@ -158,7 +159,10 @@ public:
         return true;
     }
     size_t writeBytes(const void *src,size_t len){
-        if(len>size-wp) len=size-wp;
+        if(len>size-wp) {
+            std::cerr<<"BytesWriter is running out of buffer space. Space "<<len<<" bytes needed, "<<size-wp<<" bytes actually written"<<std::endl;
+            len=size-wp;
+        }
         memcpy(p+wp,src,len);
         wp+=len;
         return len;

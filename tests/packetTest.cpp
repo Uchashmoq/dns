@@ -59,7 +59,7 @@ void testQr(){
 
 void clientSendPackets(int argv,char* args[]){
     using namespace std;
-    const char *myDomain, *localDnsAddr="47.108.118.112";
+    const char *myDomain, *localDnsAddr="114.114.114.114";
     if(argv<2){
         cerr<<"arg1 : <myDomain> , arg2 : [localDnsAddr]"<<endl;
         exit(1);
@@ -210,7 +210,7 @@ void echoServer(){
         p.data+=Bytes("!!!");
 
         Dns resp;
-        Packet::packetToDnsResp(resp,d.transactionId,p,myDom);
+        Packet::packetToDnsResp(resp,d.transactionId,p);
         ssize_t respN = Dns::bytes(resp, buf, sizeof(buf));
         puts("send :");
         writeUdp(sockfd,buf,respN,from);
@@ -226,8 +226,8 @@ void simulateEchoServer() {
     using namespace std;
     Packet p1,p2,p3,p4;
     Dns d1,d2,d3,d4;
-    string msg = "a";
-    repeat(msg,1000);
+    string msg = "abcdefg";
+    //repeat(msg,500);
     auto myDom = cstrToDomain("tun.k72vb42ffx.xyz");
     p1.dnsTransactionId=0x1234;
     p1.sessionId=0x1234;
@@ -242,7 +242,7 @@ void simulateEchoServer() {
     ssize_t n1 = Dns::bytes(d1, buf1, sizeof(buf1));
 
     cout<<"p1:"<<endl<<p1.toString()<<endl<<"d1:"<<d1.toString();
-    pbytes(buf1,n1);
+   // pbytes(buf1,n1);
 
     auto res1 = Dns::resolve(d2,buf1,n1);
     if(res1<0) {
@@ -253,7 +253,7 @@ void simulateEchoServer() {
     cout<<(string)p2.data<<endl;
     p2.data+="!!!";
     p3=p2;
-    Packet::packetToDnsResp(d3,d2.transactionId,p3,myDom);
+    Packet::packetToDnsResp(d3,d2.transactionId,p3);
     //cout<<"d3:\n"<<d3.toString();
     auto n2 = Dns::bytes(d3,buf2, sizeof(buf2));
 
@@ -264,7 +264,7 @@ void simulateEchoServer() {
     }
 
     Packet::dnsRespToPacket(p4,d4);
-    pbytes(buf2,n2);
+    //pbytes(buf2,n2);
     cout<<"d4:"<<endl<<d4.toString()<<"p4:"<<endl<<p4.toString();
     cout<<(string)p4.data;
 
