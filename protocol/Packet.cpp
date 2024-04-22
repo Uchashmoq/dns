@@ -174,6 +174,7 @@ int Packet::dnsRespToPacket(Packet &packet, const Dns &dns) {
         return -1;
     }
     packet.qr=qr;
+    packet.dnsTransactionId=dns.transactionId;
     uint8_t payload[BUF_SIZE];
     BytesWriter bw(payload, sizeof(payload));
     auto payloadLen  = getValuablePayload(bw,dns);
@@ -202,14 +203,14 @@ static uint8_t randLabelSize(){
 
 static record_t randRecordType(){
     uint8_t x = (uint8_t)rand();
-    static record_t arr[]={TXT,PTR,CNAME,AAAA,A};
+    static record_t arr[]={TXT,PTR,CNAME};
     return arr[x%5];
 }
 
-static Query writeToQuery(BytesReader& br ,const vector<Bytes>& domain,uint8_t cnt){
+static Query writeToQuery(BytesReader& br ,record_t qType,const vector<Bytes>& domain,uint8_t cnt){
     uint8_t encodedPayload[1024], payload[512] , n =0,dlen = domainLen(domain) ,len ;
     Query q;
-    q.queryType=randRecordType();
+    q.queryType=qType;
     BytesWriter bw(payload,sizeof(payload));
     bw.writeNum(cnt);
     while(br.readableBytes()>0){
@@ -220,6 +221,9 @@ static Query writeToQuery(BytesReader& br ,const vector<Bytes>& domain,uint8_t c
         q.question.emplace_back(encodedPayload,encodedN);
         n+=encodedN;
         bw.jmp();
+    }
+    if(q.question.empty()){
+        Log::printf(LOG_WARN, "write empty data to a query");
     }
     for(auto& b : domain){
         q.question.push_back(b);
@@ -256,7 +260,7 @@ int Packet::packetToDnsQuery(Dns &dns, uint16_t transactionId,const Packet &pack
     dns.setFlag(RD_MASK,1);
     BytesReader br(unencoded,bw.writen());
     while(br.readableBytes()>0){
-        dns.queries.push_back(writeToQuery(br,domain,(uint8_t)(++dns.questions)));
+        dns.queries.push_back(writeToQuery(br,packet.dnsQueryType,domain,(uint8_t)(++dns.questions)));
     }
     return 0;
 }
@@ -410,6 +414,7 @@ int Packet::dnsQueryToPacket(Packet &packet, const Dns &dns, const vector<Bytes>
         Log::printf(LOG_DEBUG,"in function dnsRespToPacket , qr is not a dns response:\n%s",dns.toString().c_str());
         return -1;
     }
+    packet.dnsTransactionId=dns.transactionId;
     packet.originalQueries=dns.queries;
     packet.qr=qr;
     uint8_t payload[BUF_SIZE];

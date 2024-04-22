@@ -60,6 +60,7 @@ void testQr(){
 void clientSendPackets(int argv,char* args[]){
     using namespace std;
     const char *myDomain, *localDnsAddr="114.114.114.114";
+    uint16_t port=53;
     if(argv<2){
         cerr<<"arg1 : <myDomain> , arg2 : [localDnsAddr]"<<endl;
         exit(1);
@@ -89,7 +90,7 @@ void clientSendPackets(int argv,char* args[]){
         }
     });
 
-    SA_IN dnsServerAddr= inetAddr(localDnsAddr,53);
+    SA_IN dnsServerAddr= inetAddr(localDnsAddr,port);
     auto domain = cstrToDomain(myDomain);
     uint8_t sendBuf[1024];
     for(;;){
@@ -226,8 +227,8 @@ void simulateEchoServer() {
     using namespace std;
     Packet p1,p2,p3,p4;
     Dns d1,d2,d3,d4;
-    string msg = "abcdefg";
-    //repeat(msg,500);
+    string msg = "a";
+    repeat(msg,10);
     auto myDom = cstrToDomain("tun.k72vb42ffx.xyz");
     p1.dnsTransactionId=0x1234;
     p1.sessionId=0x1234;
@@ -269,6 +270,51 @@ void simulateEchoServer() {
     cout<<(string)p4.data;
 
 }
+
+void echoServer1(){
+    using namespace std;
+    int sockfd = udpSocket(inetAddr("0.0.0.0",53));
+    if(sockfd<=0){
+        cerr<<getLastErrorMessage()<<endl;
+        exit(1);
+    }
+    auto myDom = cstrToDomain("tun.k72vb42ffx.xyz");
+    uint8_t buf[2048];
+    for(;;){
+        SA_IN from;
+        SET_ZERO(from);
+        auto n = readUdp(sockfd,buf,sizeof(buf),&from);
+
+        if(n<=0){
+            cerr<<getLastErrorMessage()<<endl;
+            break;
+        }
+        cout<<"received "<<n<<" bytes from "<< sockaddr_inStr(from)<<endl;
+        Dns d;
+        if (Dns::resolve(d, buf, n)<0){
+            cerr<<"dns error"<<endl;
+            continue;
+        }
+        cout<<d.toString()<<endl;
+        Packet p;
+        if (Packet::dnsQueryToPacket(p, d, myDom)<0){
+            continue;
+        }
+        cout<<p.toString()<<endl;
+        int len = stoi(p.data);
+        string msg="a";
+        repeat(msg,len);
+        p.data=msg;
+        Dns resp;
+        Packet::packetToDnsResp(resp,d.transactionId,p);
+        ssize_t respN = Dns::bytes(resp, buf, sizeof(buf));
+        puts("send :");
+        writeUdp(sockfd,buf,respN,from);
+        cout<<"sent "<<respN<<endl<<resp.toString();
+    }
+
+}
+
 
 
 

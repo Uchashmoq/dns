@@ -6,11 +6,12 @@
 #include "Dns.h"
 #include <cstring>
 struct Packet {
-    Packet():dnsTransactionId(0),sessionId(0),groupId(0),dataId(0),type(0),qr(0){
+    Packet():dnsTransactionId(0),sessionId(0),groupId(0),dataId(0),type(0),qr(0),dnsQueryType(TXT){
         memset(&addr,0, sizeof(addr));
     }
     SA_IN addr;
     uint16_t dnsTransactionId;
+    record_t dnsQueryType;
     uint16_t sessionId;
     uint16_t groupId;
     uint16_t dataId;

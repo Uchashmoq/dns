@@ -14,8 +14,10 @@ void diff(uint8_t* b1,int len1,uint8_t* b2,int len2);
 void testA();
 
 void echoServer();
+void echoServer1();
 
 void simulateEchoServer();
+
 
 
 #endif //DNS_PACKETTEST_H
