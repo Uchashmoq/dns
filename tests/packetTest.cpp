@@ -228,7 +228,7 @@ void simulateEchoServer() {
     Packet p1,p2,p3,p4;
     Dns d1,d2,d3,d4;
     string msg = "a";
-    repeat(msg,10);
+    repeat(msg,500);
     auto myDom = cstrToDomain("tun.k72vb42ffx.xyz");
     p1.dnsTransactionId=0x1234;
     p1.sessionId=0x1234;

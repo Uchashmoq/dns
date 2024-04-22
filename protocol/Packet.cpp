@@ -117,16 +117,6 @@ static ssize_t getPayloadFromAdditional(BytesWriter& bw,const vector<Additional>
     clearPayloads(payloads);
     return n;
 }
-static ssize_t getValuablePayload(BytesWriter& bw,const Dns& dns){
-    ssize_t answerPayloadLen , additionalPayloadLen;
-    if((answerPayloadLen=getPayloadFromAnswers(bw,dns.answers) )<0){
-        return -1;
-    }
-    if((additionalPayloadLen= getPayloadFromAdditional(bw,dns.additions))<0){
-        return -1;
-    }
-    return answerPayloadLen+additionalPayloadLen;
-}
 
 static void writePacketHead(BytesWriter& bw,const Packet& packet){
     bw.writeNum(packet.sessionId);
@@ -177,7 +167,7 @@ int Packet::dnsRespToPacket(Packet &packet, const Dns &dns) {
     packet.dnsTransactionId=dns.transactionId;
     uint8_t payload[BUF_SIZE];
     BytesWriter bw(payload, sizeof(payload));
-    auto payloadLen  = getValuablePayload(bw,dns);
+    auto payloadLen  = getPayloadFromAnswers(bw,dns.answers);
     if (payloadLen<0) return -1;
 
     BytesReader br(payload,payloadLen);
@@ -269,40 +259,14 @@ static uint32_t randTTL() {
     return randRange(minTTL,maxTTL);
 }
 
-void writeToAnswerDataA(Answer& a){
-    uint8_t ip[4];
-    for(int i=0;i< sizeof(ip);i++){
-        ip[i]= randRange(1,UINT8_MAX-1);
-    }
-    a.data.emplace_back(ip,sizeof(ip));
-    a.dataLen= sizeof(ip);
-}
-void writeToAnswerDataAAAA(Answer& a){
-    uint16_t ip[8];
-    for(int i=0;i< sizeof(ip);i++){
-        ip[i]= randRange(1,UINT16_MAX-1);
-    }
-    a.data.emplace_back(ip,sizeof(ip));
-    a.dataLen= sizeof(ip);
-}
-
 static Answer writeToAnswer(BytesReader& br, const Query& originalQuery, uint8_t cnt){
     Answer a;
     a.ansType=originalQuery.queryType;
     a.ansClass=originalQuery.queryClass;
     a.ttl=randTTL();
     a.name=originalQuery.question;
+    a.dataLen= writeToLabeledData(br,cnt,a.data,MAX_TOTAL_DOMAIN_LEN, DATA_SHOULD_APPEND0(a.ansType));
 
-    switch (a.ansType) {
-        case A:
-            writeToAnswerDataA(a);
-            break;
-        case AAAA:
-            writeToAnswerDataAAAA(a);
-            break;
-        default:
-            a.dataLen= writeToLabeledData(br,cnt,a.data,MAX_TOTAL_DOMAIN_LEN, DATA_SHOULD_APPEND0(a.ansType));
-    }
     return move(a);
 }
 
@@ -310,7 +274,7 @@ static record_t randAdditionalType(){
     record_t t[]={NS,CNAME,TXT,PTR};
     return t[randRange(0,4)];
 }
-
+#if 0
 static Additional writeToAdditional(BytesReader& br,uint8_t cnt){
     Additional a;
     a.addType=randAdditionalType();
@@ -318,7 +282,7 @@ static Additional writeToAdditional(BytesReader& br,uint8_t cnt){
     a.dataLen=writeToLabeledData(br,cnt+1,a.data,MAX_TOTAL_DOMAIN_LEN, DATA_SHOULD_APPEND0(a.addType));
     return move(a);
 }
-
+#endif
 int Packet::packetToDnsResp(Dns &dns,uint16_t transactionId ,const Packet &packet) {
     dns.transactionId=transactionId;
     dns.questions=packet.originalQueries.size();
@@ -332,19 +296,11 @@ int Packet::packetToDnsResp(Dns &dns,uint16_t transactionId ,const Packet &packe
     bw.writeBytes(packet.data);
     BytesReader br(unencoded,bw.writen());
 
-    for(size_t i=0;i<packet.originalQueries.size() && br.readableBytes()>0 ;i++){
+    for(size_t i=0;i< br.readableBytes()>0 ;i++){
         if(i>=UINT8_MAX-1) Log::printf(LOG_WARN,"in packetToDnsResp, ansCnt exceeds range of uint8_t");
-        dns.answers.push_back(writeToAnswer(br, packet.originalQueries[i],i+1));
+        dns.answers.push_back(writeToAnswer(br, packet.originalQueries.front(),i+1));
     }
     dns.answerRRs=dns.answers.size();
-
-    uint16_t addCnt=1;
-    while (br.readableBytes()>0){
-        if(addCnt>=UINT8_MAX-1) Log::printf(LOG_WARN,"in packetToDnsResp, addCnt exceeds range of uint8_t");
-        dns.additions.push_back(writeToAdditional(br,addCnt));
-        addCnt+=2;
-    }
-    dns.additionalRRs=dns.additions.size();
 
     return 0;
 }
