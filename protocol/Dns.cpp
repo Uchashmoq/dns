@@ -1,5 +1,6 @@
 #include "Dns.h"
 #include "../lib/Log.h"
+#include <unordered_map>
 #include <iostream>
 using namespace std;
 /*
@@ -234,19 +235,46 @@ ssize_t Dns::resolve(Dns &dns, const void *buf, size_t size) {
     return p-(uint8_t*)buf;
 }
 
+using CompressMap = unordered_map<SimpleBytes,uint16_t ,SimpleBytes::HashCode,SimpleBytes::Equals>;
+
+void writeDomainPointer(BytesWriter& bw, uint16_t prevDomainOffset) {
+    uint16_t pos=0xc000u;
+    pos|=prevDomainOffset;
+    bw.writeNum(pos);
+}
+
+bool compressDomain(uint8_t* start, size_t n, uint16_t offset, BytesWriter& bw, CompressMap& cmap){
+    SimpleBytes domain(start,n);
+    auto prevDomain = cmap.find(domain);
+    if(prevDomain==cmap.end()) {
+        cmap.insert(make_pair(domain,offset));
+        return false;
+    }
+    auto prevDomainOffset = prevDomain->second;
+    writeDomainPointer(bw.jmp(offset),prevDomainOffset);
+    return true;
+}
+
 template<class IT>
-static size_t writeLabeledData(BytesWriter& bw,IT begin,IT end,bool append0){
+static size_t writeLabeledData(BytesWriter& bw,IT begin,IT end,bool append0,CompressMap& cmap){
     auto n0 = bw.writen();
+    auto p0= bw.writep();
     for(auto it=begin;it!=end;++it ){
         if(it->size>MAX_LABEL_LEN) Log::printf(LOG_WARN,"length of label exceeds : %u",it->size);
         bw.writeNum((uint8_t)it->size);
         bw.writeBytes(*it);
     }
     if(append0) bw.writeNum((uint8_t)0);
-    return bw.writen()-n0;
+    size_t n = bw.writen()-n0;
+    if(compressDomain(p0,n,n0,bw,cmap)){
+        return 2;
+    }else{
+        return n;
+    }
 }
 
 ssize_t Dns::bytes(const Dns &dns, void *buf, size_t size) {
+    CompressMap cmap;
     BytesWriter bw(buf,size);
     bw.writeNum(dns.transactionId);
     bw.writeNum(dns.flags);
@@ -256,13 +284,13 @@ ssize_t Dns::bytes(const Dns &dns, void *buf, size_t size) {
     bw.writeNum(dns.additionalRRs);
 
     for(auto& q : dns.queries){
-        writeLabeledData(bw,q.question.begin(),q.question.end(), true);
+        writeLabeledData(bw,q.question.begin(),q.question.end(), true,cmap);
         bw.writeNum(q.queryType);
         bw.writeNum(q.queryClass);
     }
 
     for(auto& ans : dns.answers){
-        writeLabeledData(bw,ans.name.begin(),ans.name.end(), true);
+        writeLabeledData(bw,ans.name.begin(),ans.name.end(), true,cmap);
         bw.writeNum(ans.ansType);
         bw.writeNum(ans.ansClass);
         bw.writeNum(ans.ttl);
@@ -271,14 +299,14 @@ ssize_t Dns::bytes(const Dns &dns, void *buf, size_t size) {
             if(ans.ansType==MX){
                 bw.writeBytes(ans.data.front());
             }
-             writeLabeledData(bw,ans.data.begin()+(ans.ansType==MX),ans.data.end(), DATA_SHOULD_APPEND0(ans.ansType));
+             writeLabeledData(bw,ans.data.begin()+(ans.ansType==MX),ans.data.end(), DATA_SHOULD_APPEND0(ans.ansType),cmap);
         }else{
            bw.writeBytes(ans.data.front());
         }
     }
 
     for(auto& ns : dns.nameservers){
-        writeLabeledData(bw,ns.name.begin(),ns.name.end(), true);
+        writeLabeledData(bw,ns.name.begin(),ns.name.end(), true,cmap);
         bw.writeNum(ns.nsType);
         bw.writeNum(ns.nsClass);
         bw.writeNum(ns.ttl);
@@ -287,7 +315,7 @@ ssize_t Dns::bytes(const Dns &dns, void *buf, size_t size) {
     }
 
     for(auto& add : dns.additions){
-        writeLabeledData(bw,add.name.begin(),add.name.end(), true);
+        writeLabeledData(bw,add.name.begin(),add.name.end(), true,cmap);
         bw.writeNum(add.addType);
         bw.writeNum(add.addClass);
         bw.writeNum(add.ttl);
@@ -297,7 +325,7 @@ ssize_t Dns::bytes(const Dns &dns, void *buf, size_t size) {
             if(add.addType==MX){
                 bw.writeBytes(add.data.front());
             }
-            writeLabeledData(bw,add.data.begin()+(add.addType==MX),add.data.end(), DATA_SHOULD_APPEND0(add.addType));
+            writeLabeledData(bw,add.data.begin()+(add.addType==MX),add.data.end(), DATA_SHOULD_APPEND0(add.addType),cmap);
         }else{
             bw.writeBytes(add.data.front());
         }

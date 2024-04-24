@@ -45,6 +45,7 @@ static void showClientReceivedData(uint8_t* p,size_t n){
         return;
     }
     cout<<"packet : "<<packet.toString()<<endl;
+    cout<<"msg len :"<<packet.data.size<<endl;
     cout<<(string)packet.data<<endl;
 }
 
@@ -59,7 +60,7 @@ void testQr(){
 
 void clientSendPackets(int argv,char* args[]){
     using namespace std;
-    const char *myDomain, *localDnsAddr="114.114.114.114";
+    const char *myDomain, *localDnsAddr="221.7.92.98";
     uint16_t port=53;
     if(argv<2){
         cerr<<"arg1 : <myDomain> , arg2 : [localDnsAddr]"<<endl;
@@ -75,7 +76,7 @@ void clientSendPackets(int argv,char* args[]){
         cerr<<getLastErrorMessage()<<endl;
     }
     thread recv([&](){
-        uint8_t buf[1024];
+        uint8_t buf[1024*32];
         for(;;){
             SA_IN from;
             memset(&from,0,sizeof(from));
@@ -85,7 +86,7 @@ void clientSendPackets(int argv,char* args[]){
                 break;
             }
             cout<<"received "<<n<<"bytes from "<<sockaddr_inStr(from)<<endl;
-            pbytes(buf,n);//打印字节数组内容
+           // pbytes(buf,n);//打印字节数组内容
             showClientReceivedData(buf,n);//展示dns数据包信息
         }
     });
@@ -265,7 +266,7 @@ void simulateEchoServer() {
     }
 
     Packet::dnsRespToPacket(p4,d4);
-    //pbytes(buf2,n2);
+    pbytes(buf2,n2);
     cout<<"d4:"<<endl<<d4.toString()<<"p4:"<<endl<<p4.toString();
     cout<<(string)p4.data;
 

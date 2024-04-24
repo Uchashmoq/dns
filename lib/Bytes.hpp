@@ -95,6 +95,79 @@ struct Bytes{
         delete[] (char *)data;
         size=0;
     }
+
+    struct HashCode{
+        size_t operator()(const Bytes& b) const{
+            size_t h=0u;
+            for(size_t i=0;i<b.size;i++){
+                h=h*33+(size_t)b.data[i];
+            }
+            return h;
+        }
+    };
+
+    struct Equals{
+        bool operator()(const Bytes& b1,const Bytes& b2) const{
+            return b1==b2;
+        }
+    };
+
+    struct PtrHashCode{
+        size_t operator()(const Bytes* pb) const{
+            return Bytes::HashCode()(*pb);
+        }
+    };
+
+    struct PtrEquals{
+        bool operator()(const Bytes* pb1 , const Bytes* pb2) const{
+            return *pb1 == *pb2;
+        }
+    };
+
+};
+
+
+struct SimpleBytes{
+    uint8_t *data;
+    size_t size;
+    SimpleBytes() : data(nullptr) , size(0){}
+    SimpleBytes(void* data_,size_t size_) : data((uint8_t*)data_) , size(size_){}
+    bool operator==(const SimpleBytes& other)const{
+        if(this==&other) return true;
+        if(size!=other.size) return false;
+        for(size_t i=0;i<size;i++){
+            if( data[i]!=other.data[i]) return false;
+        }
+        return true;
+    }
+    struct HashCode{
+        size_t operator()(const SimpleBytes& b) const{
+            size_t h=0u;
+            for(size_t i=0;i<b.size;i++){
+                h=h*33+(size_t)b.data[i];
+            }
+            return h;
+        }
+    };
+
+    struct Equals{
+        bool operator()(const SimpleBytes& b1,const SimpleBytes& b2) const{
+            return b1==b2;
+        }
+    };
+
+    struct PtrHashCode{
+        size_t operator()(const SimpleBytes* pb) const{
+            return SimpleBytes::HashCode()(*pb);
+        }
+    };
+
+    struct PtrEquals{
+        bool operator()(const SimpleBytes* pb1 , const SimpleBytes* pb2) const{
+            return *pb1 == *pb2;
+        }
+    };
+
 };
 
 class BytesWriter;
@@ -180,6 +253,18 @@ public:
     }
     size_t writableBytes()  const {return size-wp;}
     size_t writen() const {return wp;}
+    uint8_t* writep() {return p+wp;}
+    BytesWriter& repeatedWrite(uint8_t v,size_t len){
+        if(len>size-wp) {
+            std::cerr<<"BytesWriter is running out of buffer space. Space "<<len<<" bytes needed, "<<size-wp<<" bytes actually written"<<std::endl;
+            len=size-wp;
+        }
+        for(size_t i=0;i<len;i++,wp++){
+            p[wp]=v;
+        }
+        return *this;
+    }
+
 };
 
 #endif
